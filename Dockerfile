@@ -1,4 +1,4 @@
-.# parameters
+# parameters
 ARG REPO_NAME="duckietown2024"
 ARG DESCRIPTION="Base class repo for UML EECE 5560"
 ARG MAINTAINER="Nadav Fedida (nadavz_@hotmail.com)"
