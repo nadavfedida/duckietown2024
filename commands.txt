@@ -1,0 +1,22 @@
+Build local: dts devel build --pull -f
+Run local(master): dts devel run -M -X --cmd bash -f
+Run local(attach): dts devel run attach
+
+Build online: dts devel build -H duckienadav.local --pull -f
+Run online(master): dts devel run -H duckienadav.local -s -M --cmd bash -f
+Run online(attach): dts devel run -H duckienadav.local attach
+
+Lane Following demo: dts duckiebot demo --demo_name lane_following --duckiebot_name duckiebot --package_name duckietown_demos
+
+Start GUI tools: dts start_gui_tools duckiebot
+
+Keyboard control: dts duckiebot keyboard_control duckiebot
+Keyboard control CLI: dts duckiebot keyboard_control duckiebot --cli
+
+
+	# create new ROS package (inside packages folder)
+catkin_create_pkg open_loop__square std_msgs rospy roscpp duckietown_msgs
+	# change permissions of folder
+chmod -R a+rw open_loop_sqaure
+catkin build
+source/code/catkin_ws/devel/setup.bash
