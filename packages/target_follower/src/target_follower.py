@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import math
 import rospy
 from duckietown_msgs.msg import Twist2DStamped
 from duckietown_msgs.msg import FSMState
@@ -15,8 +15,8 @@ class Target_Follower:
         rospy.on_shutdown(self.clean_shutdown)
         
         ###### Init Pub/Subs. REMEMBER TO REPLACE "akandb" WITH YOUR ROBOT'S NAME #####
-        self.cmd_vel_pub = rospy.Publisher('/akandb/car_cmd_switch_node/cmd', Twist2DStamped, queue_size=1)
-        rospy.Subscriber('/akandb/apriltag_detector_node/detections', AprilTagDetectionArray, self.tag_callback, queue_size=1)
+        self.cmd_vel_pub = rospy.Publisher('/duckienadav/car_cmd_switch_node/cmd', Twist2DStamped, queue_size=1)
+        rospy.Subscriber('/duckienadav/apriltag_detector_node/detections', AprilTagDetectionArray, self.tag_callback, queue_size=1)
         ################################################################
 
         rospy.spin() # Spin forever but listen to message callbacks
@@ -40,10 +40,25 @@ class Target_Follower:
 
     def move_robot(self, detections):
 
-        #### YOUR CODE GOES HERE ####
-
         if len(detections) == 0:
             return
+
+        # Extracting tag position from the first detection
+        tag_pos_x = detections[0].transform.translation.x
+
+        # PID control for maintaining a desired height
+        desired_height = 0.4
+        z_error = desired_height - detections[0].transform.translation.z
+        z_correction = self.pid_controller(z_error)
+
+        # Proportional control for centering the tag
+        Kp_centering = 0.1  # Tune this value according to the desired response
+        angular_velocity = Kp_centering * tag_pos_x
+
+        # Limiting angular velocity to prevent excessive movement
+        max_angular_velocity = 1.0  # Define your maximum angular velocity
+        if abs(angular_velocity) > max_angular_velocity:
+            angular_velocity = max_angular_velocity if angular_velocity > 0 else -max_angular_velocity
 
         x = detections[0].transform.translation.x
         y = detections[0].transform.translation.y
@@ -51,14 +66,31 @@ class Target_Follower:
 
         rospy.loginfo("x,y,z: %f %f %f", x, y, z)
 
-
-        # Publish a velocity
+        # Publishing velocity commands
         cmd_msg = Twist2DStamped()
         cmd_msg.header.stamp = rospy.Time.now()
-        cmd_msg.v = 0.0
-        cmd_msg.omega = 0.0
+        cmd_msg.v = z_correction  # Use PID output for linear velocity
+        cmd_msg.omega = angular_velocity
         self.cmd_vel_pub.publish(cmd_msg)
 
+    def pid_controller(self, error):
+        # Proportional term
+        p_term = self.pid_p * error
+
+        # Integral term
+        self.error_sum += error
+        i_term = self.pid_i * self.error_sum
+
+        # Derivative term
+        d_term = self.pid_d * (error - self.last_error)
+        self.last_error = error
+
+        # PID output
+        output = p_term + i_term + d_term
+        return output
+
+
+    
         #############################
 
 if __name__ == '__main__':
