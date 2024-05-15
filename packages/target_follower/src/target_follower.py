@@ -53,10 +53,21 @@ class Target_Follower:
         # Extracting tag position from the first detection
         tag_pos_x = detections[0].transform.translation.x
 
+        # Extracting tag height from the first detection
+        tag_height = detections[0].transform.translation.z
+
         # PID control for maintaining a desired height
         desired_height = 0.4
-        z_error = desired_height - detections[0].transform.translation.z
+        z_error = desired_height - tag_height
         z_correction = self.pid_controller(z_error)
+
+        # Check if the tag is within acceptable height range
+        if abs(z_error) <= 0.05:  # Adjust tolerance as needed
+            linear_velocity = 0.0  # Stop moving if within acceptable height range
+        elif z_error > 0:
+            linear_velocity = 0.1  # Move forwards if tag is below desired height
+        else:
+            linear_velocity = -0.1  # Move backwards if tag is above desired height
 
         # Proportional control for centering the tag
         Kp_centering = 0.1  # Tune this value according to the desired response
@@ -70,10 +81,10 @@ class Target_Follower:
         # Publishing velocity commands
         cmd_msg = Twist2DStamped()
         cmd_msg.header.stamp = rospy.Time.now()
-        cmd_msg.v = z_correction  # Use PID output for linear velocity
+        cmd_msg.v = linear_velocity  # Use linear velocity for distance control
         cmd_msg.omega = angular_velocity
         self.cmd_vel_pub.publish(cmd_msg)
-
+        
     def pid_controller(self, error):
         # Proportional term
         p_term = self.pid_p * error
