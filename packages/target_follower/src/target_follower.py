@@ -7,7 +7,14 @@ from duckietown_msgs.msg import AprilTagDetectionArray
 
 class Target_Follower:
     def __init__(self):
-        
+
+        # Initialize PID controller parameters for maintaining a desired height
+        self.pid_p = 0.1  # Proportional gain
+        self.pid_i = 0.0  # Integral gain
+        self.pid_d = 0.0  # Derivative gain
+        self.error_sum = 0.0
+        self.last_error = 0.0
+
         #Initialize ROS node
         rospy.init_node('target_follower_node', anonymous=True)
 
@@ -20,13 +27,6 @@ class Target_Follower:
         ################################################################
 
         rospy.spin() # Spin forever but listen to message callbacks
-        
-           # Initialize PID controller parameters for maintaining a desired height
-        self.pid_p = 0.1  # Proportional gain
-        self.pid_i = 0.0  # Integral gain
-        self.pid_d = 0.0  # Derivative gain
-        self.error_sum = 0.0
-        self.last_error = 0.0
 
 
     # Apriltag Detection Callback
