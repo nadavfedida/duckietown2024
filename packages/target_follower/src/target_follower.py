@@ -20,6 +20,14 @@ class Target_Follower:
         ################################################################
 
         rospy.spin() # Spin forever but listen to message callbacks
+        
+           # Initialize PID controller parameters for maintaining a desired height
+        self.pid_p = 0.1  # Proportional gain
+        self.pid_i = 0.0  # Integral gain
+        self.pid_d = 0.0  # Derivative gain
+        self.error_sum = 0.0
+        self.last_error = 0.0
+
 
     # Apriltag Detection Callback
     def tag_callback(self, msg):
@@ -39,7 +47,6 @@ class Target_Follower:
         self.cmd_vel_pub.publish(cmd_msg)
 
     def move_robot(self, detections):
-
         if len(detections) == 0:
             return
 
@@ -52,19 +59,13 @@ class Target_Follower:
         z_correction = self.pid_controller(z_error)
 
         # Proportional control for centering the tag
-        Kp_centering = 0.1  # Tune this value according to the desired response
+        Kp_centering = 0.1  # Tune this value according to the desired respongise
         angular_velocity = Kp_centering * tag_pos_x
 
         # Limiting angular velocity to prevent excessive movement
         max_angular_velocity = 1.0  # Define your maximum angular velocity
         if abs(angular_velocity) > max_angular_velocity:
             angular_velocity = max_angular_velocity if angular_velocity > 0 else -max_angular_velocity
-
-        x = detections[0].transform.translation.x
-        y = detections[0].transform.translation.y
-        z = detections[0].transform.translation.z
-
-        rospy.loginfo("x,y,z: %f %f %f", x, y, z)
 
         # Publishing velocity commands
         cmd_msg = Twist2DStamped()
