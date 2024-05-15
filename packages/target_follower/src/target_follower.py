@@ -74,8 +74,21 @@ class Target_Follower:
         cmd_msg.omega = angular_velocity
         self.cmd_vel_pub.publish(cmd_msg)
 
+    def pid_controller(self, error):
+        # Proportional term
+        p_term = self.pid_p * error
 
+        # Integral term
+        self.error_sum += error
+        i_term = self.pid_i * self.error_sum
 
+        # Derivative term
+        d_term = self.pid_d * (error - self.last_error)
+        self.last_error = error
+
+        # PID output
+        output = p_term + i_term + d_term
+        return output
     
         #############################
 
