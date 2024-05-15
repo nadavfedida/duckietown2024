@@ -53,9 +53,9 @@ class Target_Follower:
         if abs(z_error) <= 0.05: 
             linear_velocity = 0.0  
         elif z_error > 0:
-            linear_velocity = 0.1  
-        else:
             linear_velocity = -0.1  
+        else:
+            linear_velocity = 0.1  
 
 
         Kp_centering = 0.1  #
