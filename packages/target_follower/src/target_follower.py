@@ -59,11 +59,11 @@ class Target_Follower:
         z_correction = self.pid_controller(z_error)
 
         # Proportional control for centering the tag
-        Kp_centering = 0.1  # Tune this value according to the desired respongise
-        angular_velocity = Kp_centering * tag_pos_x
+        Kp_centering = 0.1  # Tune this value according to the desired response
+        angular_velocity = -Kp_centering * tag_pos_x  # Negative sign to move towards the tag
 
         # Limiting angular velocity to prevent excessive movement
-        max_angular_velocity = 1.0  # Define your maximum angular velocity
+        max_angular_velocity = 1.5  # Define your maximum angular velocity
         if abs(angular_velocity) > max_angular_velocity:
             angular_velocity = max_angular_velocity if angular_velocity > 0 else -max_angular_velocity
 
@@ -74,21 +74,6 @@ class Target_Follower:
         cmd_msg.omega = angular_velocity
         self.cmd_vel_pub.publish(cmd_msg)
 
-    def pid_controller(self, error):
-        # Proportional term
-        p_term = self.pid_p * error
-
-        # Integral term
-        self.error_sum += error
-        i_term = self.pid_i * self.error_sum
-
-        # Derivative term
-        d_term = self.pid_d * (error - self.last_error)
-        self.last_error = error
-
-        # PID output
-        output = p_term + i_term + d_term
-        return output
 
 
     
