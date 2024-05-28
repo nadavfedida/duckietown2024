@@ -40,6 +40,8 @@ class Autopilot:
         self.tof_distance = msg.range
         rospy.loginfo(f"Distance to object: {self.tof_distance:.2f} meters")
 
+        self.move_robot(self)
+
     def left_encoder_callback(self, msg):
         self.left_ticks = msg.data
     
