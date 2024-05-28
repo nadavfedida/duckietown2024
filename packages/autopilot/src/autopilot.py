@@ -17,6 +17,8 @@ class Autopilot:
         self.right_ticks_prev = 0
         self.ticks_per_meter = 135  # Example value, this needs to be calibrated for your robot
 
+        self.rate = rospy.Rate(10)  # 10 Hz rate for publishing distance
+
         # When shutdown signal is received, we run clean_shutdown function
         rospy.on_shutdown(self.clean_shutdown)
         
@@ -34,6 +36,11 @@ class Autopilot:
     def tag_callback(self, msg):
         if self.robot_state != "LANE_FOLLOWING":
             return
+        
+        for detection in msg.detections:
+            distance = detection.transform.translation.z
+            rospy.loginfo(f"Distance to object: {distance:.2f} meters")
+            self.rate.sleep()
         
         self.move_robot(msg.detections)
     
