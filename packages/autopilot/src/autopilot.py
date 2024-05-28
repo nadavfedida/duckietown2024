@@ -29,7 +29,7 @@ class Autopilot:
         self.state_pub = rospy.Publisher('/duckienadav/fsm_node/mode', FSMState, queue_size=1)
         rospy.Subscriber('/duckienadav/left_wheel_encoder_node/tick', WheelEncoderStamped, self.left_encoder_callback)
         rospy.Subscriber('/duckienadav/right_wheel_encoder_node/tick', WheelEncoderStamped, self.right_encoder_callback)
-        rospy.Subscriber('/duckienadav/front_center_tof_driver_node', Range, self.tof_callback)
+        rospy.Subscriber('/duckienadav/front_center_tof_driver_node/range', Range, self.tof_callback)
         ################################################################
 
         rospy.spin() # Spin forever but listen to message callbacks
