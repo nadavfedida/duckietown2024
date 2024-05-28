@@ -92,12 +92,18 @@ class Autopilot:
         #     self.stop_flag = False
 
     def set_mode(self, mode):
+        rospy.loginfo(f"Toggle mode ")
+
         mode_msg = FSMState()
         mode_msg.header.stamp = rospy.Time.now()
         mode_msg.state = mode
         self.state_pub.publish(mode_msg)
+        rospy.loginfo(f"NEW MODE = {mode_msg.state} ")
+
 
     def perform_overtake(self):
+        rospy.loginfo(f"OVERTAKE ")
+
         self.execute_turn(45)  # Turn left 45 degrees
         self.drive_straight_distance(0.5)  # Move forward 0.5 meters
         self.execute_turn(-45)  # Turn right 45 degrees
@@ -108,6 +114,8 @@ class Autopilot:
         self.stop_flag = False
 
     def execute_turn(self, angle):
+        rospy.loginfo(f"TURN - Angle {angle} ")
+
         duration = 1.0  # Set a fixed duration for the turn
         cmd_msg = Twist2DStamped()
         cmd_msg.header.stamp = rospy.Time.now()
@@ -118,6 +126,8 @@ class Autopilot:
         self.stop_robot()
 
     def drive_straight_distance(self, distance):
+        rospy.loginfo(f"Straight drive {distance} ")
+
         self.left_ticks_prev = self.left_ticks
         self.right_ticks_prev = self.right_ticks
         target_ticks = distance * self.ticks_per_meter
