@@ -1,25 +1,32 @@
 #!/usr/bin/env python3
 
 import rospy
-from duckietown_msgs.msg import Twist2DStamped
-from duckietown_msgs.msg import FSMState
-from duckietown_msgs.msg import AprilTagDetectionArray
+from duckietown_msgs.msg import Twist2DStamped, FSMState, AprilTagDetectionArray, WheelEncoderStamped
+from geometry_msgs.msg import Transform
 
 class Autopilot:
     def __init__(self):
-        
-        #Initialize ROS node
+        # Initialize ROS node
         rospy.init_node('autopilot_node', anonymous=True)
 
         self.robot_state = "LANE_FOLLOWING"
+        
+        # Encoder values
+        self.left_ticks = 0
+        self.right_ticks = 0
+        self.left_ticks_prev = 0
+        self.right_ticks_prev = 0
+        self.ticks_per_meter = 135  # Example value, this needs to be calibrated for your robot
 
         # When shutdown signal is received, we run clean_shutdown function
         rospy.on_shutdown(self.clean_shutdown)
         
-        ###### Init Pub/Subs. REMEMBER TO REPLACE "akandb" WITH YOUR ROBOT'S NAME #####
-        self.cmd_vel_pub = rospy.Publisher('/akandb/car_cmd_switch_node/cmd', Twist2DStamped, queue_size=1)
-        self.state_pub = rospy.Publisher('/akandb/fsm_node/mode', FSMState, queue_size=1)
-        rospy.Subscriber('/akandb/apriltag_detector_node/detections', AprilTagDetectionArray, self.tag_callback, queue_size=1)
+        ###### Init Pub/Subs. REMEMBER TO REPLACE "duckiebot" WITH YOUR ROBOT'S NAME #####
+        self.cmd_vel_pub = rospy.Publisher('/duckiebot/car_cmd_switch_node/cmd', Twist2DStamped, queue_size=1)
+        self.state_pub = rospy.Publisher('/duckiebot/fsm_node/mode', FSMState, queue_size=1)
+        rospy.Subscriber('/duckiebot/left_wheel_encoder_node/tick', WheelEncoderStamped, self.left_encoder_callback)
+        rospy.Subscriber('/duckiebot/right_wheel_encoder_node/tick', WheelEncoderStamped, self.right_encoder_callback)
+        rospy.Subscriber('/duckiebot/apriltag_detector_node/detections', AprilTagDetectionArray, self.tag_callback, queue_size=1)
         ################################################################
 
         rospy.spin() # Spin forever but listen to message callbacks
@@ -30,7 +37,13 @@ class Autopilot:
             return
         
         self.move_robot(msg.detections)
- 
+    
+    def left_encoder_callback(self, msg):
+        self.left_ticks = msg.data
+    
+    def right_encoder_callback(self, msg):
+        self.right_ticks = msg.data
+
     # Stop Robot before node has shut down. This ensures the robot keep moving with the latest velocity command
     def clean_shutdown(self):
         rospy.loginfo("System shutting down. Stopping robot...")
@@ -52,21 +65,77 @@ class Autopilot:
         self.state_pub.publish(state_msg)
 
     def move_robot(self, detections):
-
-        #### YOUR CODE GOES HERE ####
-
         if len(detections) == 0:
             return
 
-        # self.set_state("NORMAL_JOYSTICK_CONTROL") # Stop Lane Following
+        for detection in detections:
+            distance = self.calculate_distance(detection.transform)
+            if distance < 0.2:
+                self.stop_robot()
+                rospy.sleep(5)  # Wait for 5 seconds
 
-        # Process AprilTag info and publish a velocity
-        
-        # For open loop control, consider using rospy.sleep() afterwards.
-        
-        #self.set_state("LANE_FOLLOWING") # Go back to lane following
+                # Check if the object is still there
+                if self.is_object_still_there():
+                    self.perform_overtake()
+                else:
+                    self.drive_straight()
+                break
 
-        #############################
+    def calculate_distance(self, transform):
+        return (transform.translation.x ** 2 + transform.translation.z ** 2) ** 0.5
+
+    def is_object_still_there(self):
+        rospy.sleep(1)  # Short delay to allow new detection messages to arrive
+        msg = rospy.wait_for_message('/duckiebot/apriltag_detector_node/detections', AprilTagDetectionArray, timeout=5.0)
+        if len(msg.detections) == 0:
+            return False
+
+        for detection in msg.detections:
+            distance = self.calculate_distance(detection.transform)
+            if distance < 0.2:
+                return True
+        return False
+
+    def perform_overtake(self):
+        self.execute_turn(45)  # Turn left 45 degrees
+        self.drive_straight_distance(0.5)  # Move forward 0.5 meters
+        self.execute_turn(-45)  # Turn right 45 degrees
+        self.drive_straight_distance(0.2)  # Move forward 0.2 meters
+        self.execute_turn(-45)  # Turn right 45 degrees
+        self.drive_straight_distance(0.5)  # Move forward 0.5 meters
+        self.execute_turn(45)  # Turn left 45 degrees
+
+    def execute_turn(self, angle):
+        duration = 1.0  # Set a fixed duration for the turn
+        cmd_msg = Twist2DStamped()
+        cmd_msg.header.stamp = rospy.Time.now()
+        cmd_msg.v = 0.0
+        cmd_msg.omega = angle / duration
+        self.cmd_vel_pub.publish(cmd_msg)
+        rospy.sleep(duration)
+        self.stop_robot()
+
+    def drive_straight_distance(self, distance):
+        self.left_ticks_prev = self.left_ticks
+        self.right_ticks_prev = self.right_ticks
+        target_ticks = distance * self.ticks_per_meter
+
+        cmd_msg = Twist2DStamped()
+        cmd_msg.header.stamp = rospy.Time.now()
+        cmd_msg.v = 0.2  # Set a fixed speed
+        cmd_msg.omega = 0.0
+        self.cmd_vel_pub.publish(cmd_msg)
+
+        while not rospy.is_shutdown():
+            left_delta = self.left_ticks - self.left_ticks_prev
+            right_delta = self.right_ticks - self.right_ticks_prev
+
+            if left_delta >= target_ticks and right_delta >= target_ticks:
+                break
+
+            rospy.sleep(0.01)  # Small sleep to prevent hogging the CPU
+
+        self.stop_robot()
 
 if __name__ == '__main__':
     try:
