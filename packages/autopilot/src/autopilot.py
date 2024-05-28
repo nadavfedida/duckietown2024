@@ -68,8 +68,12 @@ class Autopilot:
         state_msg.state = self.robot_state
         self.state_pub.publish(state_msg)
 
-    def move_robot(self, event):
-        if self.tof_distance <= 0.2 and not self.stop_flag:
+    def move_robot(self):      
+        rospy.loginfo(f"move called: stop flag state = {self.stop_flag} ")
+
+        if self.tof_distance <= 0.2 and self.stop_flag == False:
+            rospy.loginfo(f"Under 0.2M: stopped and changed flag state = {self.stop_flag} ")
+
             self.stop_robot()
             rospy.sleep(2)  # Wait for 2 seconds
 
