@@ -81,15 +81,9 @@ class Autopilot:
         self.stop_flag = True
 
         # Check if the object is still there
-        # if self.tof_distance < 0.2:
         self.set_mode("NORMAL_JOYSTICK_CONTROL")  # Stop lane following
         self.perform_overtake()
         self.set_mode("LANE_FOLLOWING")  # Resume lane following
-            # else:
-            #     self.drive_straight()
-        # elif self.tof_distance > 0.2 and self.stop_flag:
-        #     self.drive_straight()
-        #     self.stop_flag = False
 
     def set_mode(self, mode):
         rospy.loginfo(f"Toggle mode ")
@@ -119,40 +113,40 @@ class Autopilot:
         duration = 1.0  # Set a fixed duration for the turn
         cmd_msg = Twist2DStamped()
         cmd_msg.header.stamp = rospy.Time.now()
-        cmd_msg.v = 0.3
-        cmd_msg.omega =  - 8.3 # angle / duration
+        cmd_msg.v = 0.0
+        cmd_msg.omega = angle / duration
         self.cmd_vel_pub.publish(cmd_msg)
-        rospy.sleep(3)
+        rospy.sleep(duration)
         self.stop_robot()
 
     def drive_straight_distance(self, distance):
         rospy.loginfo(f"Straight drive {distance} ")
 
-        # self.left_ticks_prev = self.left_ticks
-        # self.right_ticks_prev = self.right_ticks
-        # target_ticks = distance * self.ticks_per_meter
+        self.left_ticks_prev = self.left_ticks
+        self.right_ticks_prev = self.right_ticks
+        target_ticks = distance * self.ticks_per_meter
 
         cmd_msg = Twist2DStamped()
         cmd_msg.header.stamp = rospy.Time.now()
-        cmd_msg.v = 0.4  # Set a fixed speed
+        cmd_msg.v = 0.2  # Set a fixed speed
         cmd_msg.omega = 0.0
         self.cmd_vel_pub.publish(cmd_msg)
 
-        # while not rospy.is_shutdown():
-        #     left_delta = self.left_ticks - self.left_ticks_prev
-        #     right_delta = self.right_ticks - self.right_ticks_prev
+        while not rospy.is_shutdown():
+            left_delta = self.left_ticks - self.left_ticks_prev
+            right_delta = self.right_ticks - self.right_ticks_prev
 
-        #     if left_delta >= target_ticks and right_delta >= target_ticks:
-        #         break
+            if left_delta >= target_ticks and right_delta >= target_ticks:
+                break
 
-        rospy.sleep(2)  # Small sleep to prevent hogging the CPU
+            rospy.sleep(0.01)  # Small sleep to prevent hogging the CPU
 
         self.stop_robot()
 
     def drive_straight(self):
         cmd_msg = Twist2DStamped()
         cmd_msg.header.stamp = rospy.Time.now()
-        cmd_msg.v = 0.4  # Set a fixed speed
+        cmd_msg.v = 0.2  # Set a fixed speed
         cmd_msg.omega = 0.0
         self.cmd_vel_pub.publish(cmd_msg)
 
