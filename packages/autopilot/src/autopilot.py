@@ -120,7 +120,7 @@ class Autopilot:
         cmd_msg = Twist2DStamped()
         cmd_msg.header.stamp = rospy.Time.now()
         cmd_msg.v = 0.0
-        cmd_msg.omega = angle / duration
+        cmd_msg.omega =  - 8.3 # angle / duration
         self.cmd_vel_pub.publish(cmd_msg)
         rospy.sleep(duration)
         self.stop_robot()
@@ -134,7 +134,7 @@ class Autopilot:
 
         cmd_msg = Twist2DStamped()
         cmd_msg.header.stamp = rospy.Time.now()
-        cmd_msg.v = 0.2  # Set a fixed speed
+        cmd_msg.v = 0.4  # Set a fixed speed
         cmd_msg.omega = 0.0
         self.cmd_vel_pub.publish(cmd_msg)
 
