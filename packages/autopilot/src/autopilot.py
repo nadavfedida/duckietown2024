@@ -11,6 +11,8 @@ class Autopilot:
 
         self.robot_state = "LANE_FOLLOWING"
         
+        self.stop_flag = False
+
         # Encoder values
         self.left_ticks = 0
         self.right_ticks = 0
@@ -18,7 +20,7 @@ class Autopilot:
         self.right_ticks_prev = 0
         self.ticks_per_meter = 135  # Example value, this needs to be calibrated for your robot
 
-        self.rate = rospy.Rate(10)  # 10 Hz rate for publishing distance
+        self.rate = rospy.Rate(5)  # 10 Hz rate for publishing distance
         self.tof_distance = float('inf')
 
         # When shutdown signal is received, we run clean_shutdown function
@@ -65,11 +67,11 @@ class Autopilot:
         self.state_pub.publish(state_msg)
 
     def move_robot(self):
-        if self.tof_distance >= 0.2:
-            self.drive_straight()
-        else:
+        if self.tof_distance <= 0.2 and  not self.stop_flag:
             self.stop_robot()
-            rospy.sleep(5)  # Wait for 5 seconds
+            rospy.sleep(2)  # Wait for 2 seconds
+
+            self.stop_flag = True
 
             # Check if the object is still there
             if self.tof_distance < 0.2:
@@ -93,6 +95,7 @@ class Autopilot:
         self.execute_turn(-45)  # Turn right 45 degrees
         self.drive_straight_distance(0.5)  # Move forward 0.5 meters
         self.execute_turn(45)  # Turn left 45 degrees
+        self.stop_flag = False
 
     def execute_turn(self, angle):
         duration = 1.0  # Set a fixed duration for the turn
@@ -126,14 +129,14 @@ class Autopilot:
 
         self.stop_robot()
 
-    def drive_straight(self):
-        cmd_msg = Twist2DStamped()
-        cmd_msg.header.stamp = rospy.Time.now()
-        cmd_msg.v = 0.2  # Set a fixed speed
-        cmd_msg.omega = 0.0
-        self.cmd_vel_pub.publish(cmd_msg)
-        rospy.sleep(1.0)  # Duration for driving straight
-        self.stop_robot()
+    # def drive_straight(self):
+    #     cmd_msg = Twist2DStamped()
+    #     cmd_msg.header.stamp = rospy.Time.now()
+    #     cmd_msg.v = 0.2  # Set a fixed speed
+    #     cmd_msg.omega = 0.0
+    #     self.cmd_vel_pub.publish(cmd_msg)
+    #     rospy.sleep(1.0)  # Duration for driving straight
+    #     self.stop_robot()
 
 if __name__ == '__main__':
     try:
