@@ -34,13 +34,17 @@ class Autopilot:
         rospy.Subscriber('/duckienadav/front_center_tof_driver_node/range', Range, self.tof_callback)
         ################################################################
 
-        rospy.Timer(rospy.Duration(0.1), self.move_robot)  # Call move_robot 10 times per second
 
         rospy.spin() # Spin forever but listen to message callbacks
 
     def tof_callback(self, msg):
         self.tof_distance = msg.range
         rospy.loginfo(f"Distance to object: {self.tof_distance:.2f} meters")
+
+        if self.tof_distance <= 0.2 and self.stop_flag == False:
+            rospy.loginfo(f"Under 0.2M: stopped and changed flag state = {self.stop_flag} ")
+            self.move_robot()
+        
 
     def left_encoder_callback(self, msg):
         self.left_ticks = msg.data
@@ -70,20 +74,17 @@ class Autopilot:
 
     def move_robot(self):      
         rospy.loginfo(f"move called: stop flag state = {self.stop_flag} ")
+        self.stop_robot()
+        rospy.sleep(2)  # Wait for 2 seconds
+        
 
-        if self.tof_distance <= 0.2 and self.stop_flag == False:
-            rospy.loginfo(f"Under 0.2M: stopped and changed flag state = {self.stop_flag} ")
+        self.stop_flag = True
 
-            self.stop_robot()
-            rospy.sleep(2)  # Wait for 2 seconds
-
-            self.stop_flag = True
-
-            # Check if the object is still there
-            if self.tof_distance < 0.2:
-                self.set_mode("NORMAL_JOYSTICK_CONTROL")  # Stop lane following
-                self.perform_overtake()
-                self.set_mode("LANE_FOLLOWING")  # Resume lane following
+        # Check if the object is still there
+        # if self.tof_distance < 0.2:
+        self.set_mode("NORMAL_JOYSTICK_CONTROL")  # Stop lane following
+        self.perform_overtake()
+        self.set_mode("LANE_FOLLOWING")  # Resume lane following
             # else:
             #     self.drive_straight()
         # elif self.tof_distance > 0.2 and self.stop_flag:
