@@ -119,18 +119,18 @@ class Autopilot:
         duration = 1.0  # Set a fixed duration for the turn
         cmd_msg = Twist2DStamped()
         cmd_msg.header.stamp = rospy.Time.now()
-        cmd_msg.v = 0.0
+        cmd_msg.v = 0.3
         cmd_msg.omega =  - 8.3 # angle / duration
         self.cmd_vel_pub.publish(cmd_msg)
-        rospy.sleep(duration)
+        rospy.sleep(3)
         self.stop_robot()
 
     def drive_straight_distance(self, distance):
         rospy.loginfo(f"Straight drive {distance} ")
 
-        self.left_ticks_prev = self.left_ticks
-        self.right_ticks_prev = self.right_ticks
-        target_ticks = distance * self.ticks_per_meter
+        # self.left_ticks_prev = self.left_ticks
+        # self.right_ticks_prev = self.right_ticks
+        # target_ticks = distance * self.ticks_per_meter
 
         cmd_msg = Twist2DStamped()
         cmd_msg.header.stamp = rospy.Time.now()
