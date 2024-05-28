@@ -91,7 +91,7 @@ class Autopilot:
 
     def is_object_still_there(self):
         rospy.sleep(1)  # Short delay to allow new detection messages to arrive
-        msg = rospy.wait_for_message('/duckiebot/apriltag_detector_node/detections', AprilTagDetectionArray, timeout=5.0)
+        msg = rospy.wait_for_message('/duckienadav/apriltag_detector_node/detections', AprilTagDetectionArray, timeout=5.0)
         if len(msg.detections) == 0:
             return False
 
