@@ -12,7 +12,7 @@ class Autopilot:
         self.robot_state = "LANE_FOLLOWING"
         
         self.stop_flag = False
-
+        
         # Encoder values
         self.left_ticks = 0
         self.right_ticks = 0
@@ -138,21 +138,21 @@ class Autopilot:
         cmd_msg.omega = 0.0
         self.cmd_vel_pub.publish(cmd_msg)
 
-        while not rospy.is_shutdown():
-            left_delta = self.left_ticks - self.left_ticks_prev
-            right_delta = self.right_ticks - self.right_ticks_prev
+        # while not rospy.is_shutdown():
+        #     left_delta = self.left_ticks - self.left_ticks_prev
+        #     right_delta = self.right_ticks - self.right_ticks_prev
 
-            if left_delta >= target_ticks and right_delta >= target_ticks:
-                break
+        #     if left_delta >= target_ticks and right_delta >= target_ticks:
+        #         break
 
-            rospy.sleep(0.01)  # Small sleep to prevent hogging the CPU
+        rospy.sleep(2)  # Small sleep to prevent hogging the CPU
 
         self.stop_robot()
 
     def drive_straight(self):
         cmd_msg = Twist2DStamped()
         cmd_msg.header.stamp = rospy.Time.now()
-        cmd_msg.v = 0.2  # Set a fixed speed
+        cmd_msg.v = 0.4  # Set a fixed speed
         cmd_msg.omega = 0.0
         self.cmd_vel_pub.publish(cmd_msg)
 
