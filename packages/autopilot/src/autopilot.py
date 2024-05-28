@@ -2,7 +2,6 @@
 
 import rospy
 from duckietown_msgs.msg import Twist2DStamped, FSMState, AprilTagDetectionArray, WheelEncoderStamped
-from geometry_msgs.msg import Transform
 
 class Autopilot:
     def __init__(self):
@@ -69,20 +68,19 @@ class Autopilot:
             return
 
         for detection in detections:
-            distance = self.calculate_distance(detection.transform)
+            distance = detection.transform.translation.z
             if distance < 0.2:
                 self.stop_robot()
                 rospy.sleep(5)  # Wait for 5 seconds
 
                 # Check if the object is still there
                 if self.is_object_still_there():
+                    self.set_mode("NORMAL_JOYSTICK_CONTROL")  # Stop lane following
                     self.perform_overtake()
+                    self.set_mode("LANE_FOLLOWING")  # Resume lane following
                 else:
                     self.drive_straight()
                 break
-
-    def calculate_distance(self, transform):
-        return (transform.translation.x ** 2 + transform.translation.z ** 2) ** 0.5
 
     def is_object_still_there(self):
         rospy.sleep(1)  # Short delay to allow new detection messages to arrive
@@ -91,10 +89,16 @@ class Autopilot:
             return False
 
         for detection in msg.detections:
-            distance = self.calculate_distance(detection.transform)
+            distance = detection.transform.translation.z
             if distance < 0.2:
                 return True
         return False
+
+    def set_mode(self, mode):
+        mode_msg = FSMState()
+        mode_msg.header.stamp = rospy.Time.now()
+        mode_msg.state = mode
+        self.state_pub.publish(mode_msg)
 
     def perform_overtake(self):
         self.execute_turn(45)  # Turn left 45 degrees
@@ -135,6 +139,15 @@ class Autopilot:
 
             rospy.sleep(0.01)  # Small sleep to prevent hogging the CPU
 
+        self.stop_robot()
+
+    def drive_straight(self):
+        cmd_msg = Twist2DStamped()
+        cmd_msg.header.stamp = rospy.Time.now()
+        cmd_msg.v = 0.2  # Set a fixed speed
+        cmd_msg.omega = 0.0
+        self.cmd_vel_pub.publish(cmd_msg)
+        rospy.sleep(1.0)  # Duration for driving straight
         self.stop_robot()
 
 if __name__ == '__main__':
