@@ -1,55 +1,36 @@
 #!/usr/bin/env python3
-
+import math
 import rospy
-from duckietown_msgs.msg import Twist2DStamped, FSMState, WheelEncoderStamped
-from sensor_msgs.msg import Range
+from duckietown_msgs.msg import Twist2DStamped
+from duckietown_msgs.msg import FSMState
+from duckietown_msgs.msg import AprilTagDetectionArray
 
-class Autopilot:
+class Target_Follower:
     def __init__(self):
-        # Initialize ROS node
-        rospy.init_node('autopilot_node', anonymous=True)
 
-        self.robot_state = "LANE_FOLLOWING"
-        
-        # Encoder values
-        self.left_ticks = 0
-        self.right_ticks = 0
-        self.left_ticks_prev = 0
-        self.right_ticks_prev = 0
-        self.ticks_per_meter = 135  # Example value, this needs to be calibrated for your robot
+        self.pid_p = 0.1  
+        self.pid_i = 0.0  
+        self.pid_d = 0.0  
+        self.error_sum = 0.0
+        self.last_error = 0.0
 
-        self.rate = rospy.Rate(10)  # 10 Hz rate for publishing distance
-        self.tof_distance = float('inf')
+        rospy.init_node('target_follower_node', anonymous=True)
 
-        # When shutdown signal is received, we run clean_shutdown function
         rospy.on_shutdown(self.clean_shutdown)
         
-        ###### Init Pub/Subs. REMEMBER TO REPLACE "duckienadav" WITH YOUR ROBOT'S NAME #####
         self.cmd_vel_pub = rospy.Publisher('/duckienadav/car_cmd_switch_node/cmd', Twist2DStamped, queue_size=1)
-        self.state_pub = rospy.Publisher('/duckienadav/fsm_node/mode', FSMState, queue_size=1)
-        rospy.Subscriber('/duckienadav/left_wheel_encoder_node/tick', WheelEncoderStamped, self.left_encoder_callback)
-        rospy.Subscriber('/duckienadav/right_wheel_encoder_node/tick', WheelEncoderStamped, self.right_encoder_callback)
-        rospy.Subscriber('/duckienadav/tof_distance', Range, self.tof_callback)
-        ################################################################
+        rospy.Subscriber('/duckienadav/apriltag_detector_node/detections', AprilTagDetectionArray, self.tag_callback, queue_size=1)
 
-        rospy.spin() # Spin forever but listen to message callbacks
+        rospy.spin() 
 
-    def tof_callback(self, msg):
-        self.tof_distance = msg.range
-        rospy.loginfo(f"Distance to object: {self.tof_distance:.2f} meters")
 
-    def left_encoder_callback(self, msg):
-        self.left_ticks = msg.data
-    
-    def right_encoder_callback(self, msg):
-        self.right_ticks = msg.data
-
-    # Stop Robot before node has shut down. This ensures the robot keep moving with the latest velocity command
+    def tag_callback(self, msg):
+        self.move_robot(msg.detections)
+ 
     def clean_shutdown(self):
         rospy.loginfo("System shutting down. Stopping robot...")
         self.stop_robot()
 
-    # Sends zero velocity to stop the robot
     def stop_robot(self):
         cmd_msg = Twist2DStamped()
         cmd_msg.header.stamp = rospy.Time.now()
@@ -57,86 +38,52 @@ class Autopilot:
         cmd_msg.omega = 0.0
         self.cmd_vel_pub.publish(cmd_msg)
 
-    def set_state(self, state):
-        self.robot_state = state
-        state_msg = FSMState()
-        state_msg.header.stamp = rospy.Time.now()
-        state_msg.state = self.robot_state
-        self.state_pub.publish(state_msg)
+    def move_robot(self, detections):
+        if len(detections) == 0:
+            return
+        tag_pos_x = detections[0].transform.translation.x
 
-    def move_robot(self):
-        if self.tof_distance >= 0.2:
-            self.drive_straight()
+        tag_height = detections[0].transform.translation.z
+
+        desired_height = 0.4
+        z_error = desired_height - tag_height
+        z_correction = self.pid_controller(z_error)
+
+      
+        if abs(z_error) <= 0.05: 
+            linear_velocity = 0.0  
+        elif z_error > 0:
+            linear_velocity = -0.1  
         else:
-            self.stop_robot()
-            rospy.sleep(5)  # Wait for 5 seconds
+            linear_velocity = 0.1  
 
-            # Check if the object is still there
-            if self.tof_distance < 0.2:
-                self.set_mode("NORMAL_JOYSTICK_CONTROL")  # Stop lane following
-                self.perform_overtake()
-                self.set_mode("LANE_FOLLOWING")  # Resume lane following
-            else:
-                self.drive_straight()
 
-    def set_mode(self, mode):
-        mode_msg = FSMState()
-        mode_msg.header.stamp = rospy.Time.now()
-        mode_msg.state = mode
-        self.state_pub.publish(mode_msg)
+        Kp_centering = 0.1  #
+        angular_velocity = -Kp_centering * tag_pos_x  
 
-    def perform_overtake(self):
-        self.execute_turn(45)  # Turn left 45 degrees
-        self.drive_straight_distance(0.5)  # Move forward 0.5 meters
-        self.execute_turn(-45)  # Turn right 45 degrees
-        self.drive_straight_distance(0.2)  # Move forward 0.2 meters
-        self.execute_turn(-45)  # Turn right 45 degrees
-        self.drive_straight_distance(0.5)  # Move forward 0.5 meters
-        self.execute_turn(45)  # Turn left 45 degrees
+        max_angular_velocity = 1.5  
+        if abs(angular_velocity) > max_angular_velocity:
+            angular_velocity = max_angular_velocity if angular_velocity > 0 else -max_angular_velocity
 
-    def execute_turn(self, angle):
-        duration = 1.0  # Set a fixed duration for the turn
+        # Publishing velocity commands
         cmd_msg = Twist2DStamped()
         cmd_msg.header.stamp = rospy.Time.now()
-        cmd_msg.v = 0.0
-        cmd_msg.omega = angle / duration
+        cmd_msg.v = linear_velocity 
+        cmd_msg.omega = angular_velocity
         self.cmd_vel_pub.publish(cmd_msg)
-        rospy.sleep(duration)
-        self.stop_robot()
+        
+    def pid_controller(self, error):
+        p_term = self.pid_p * error
+        self.error_sum += error
+        i_term = self.pid_i * self.error_sum
+        d_term = self.pid_d * (error - self.last_error)
+        self.last_error = error
 
-    def drive_straight_distance(self, distance):
-        self.left_ticks_prev = self.left_ticks
-        self.right_ticks_prev = self.right_ticks
-        target_ticks = distance * self.ticks_per_meter
-
-        cmd_msg = Twist2DStamped()
-        cmd_msg.header.stamp = rospy.Time.now()
-        cmd_msg.v = 0.2  # Set a fixed speed
-        cmd_msg.omega = 0.0
-        self.cmd_vel_pub.publish(cmd_msg)
-
-        while not rospy.is_shutdown():
-            left_delta = self.left_ticks - self.left_ticks_prev
-            right_delta = self.right_ticks - self.right_ticks_prev
-
-            if left_delta >= target_ticks and right_delta >= target_ticks:
-                break
-
-            rospy.sleep(0.01)  # Small sleep to prevent hogging the CPU
-
-        self.stop_robot()
-
-    def drive_straight(self):
-        cmd_msg = Twist2DStamped()
-        cmd_msg.header.stamp = rospy.Time.now()
-        cmd_msg.v = 0.2  # Set a fixed speed
-        cmd_msg.omega = 0.0
-        self.cmd_vel_pub.publish(cmd_msg)
-        rospy.sleep(1.0)  # Duration for driving straight
-        self.stop_robot()
-
+        output = p_term + i_term + d_term
+        return output
+    
 if __name__ == '__main__':
     try:
-        autopilot_instance = Autopilot()
+        target_follower = Target_Follower()
     except rospy.ROSInterruptException:
         pass

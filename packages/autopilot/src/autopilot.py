@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 import rospy
-from duckietown_msgs.msg import Twist2DStamped, FSMState, AprilTagDetectionArray, WheelEncoderStamped
+from duckietown_msgs.msg import Twist2DStamped, FSMState, WheelEncoderStamped
+from sensor_msgs.msg import Range
 
 class Autopilot:
     def __init__(self):
@@ -18,32 +19,25 @@ class Autopilot:
         self.ticks_per_meter = 135  # Example value, this needs to be calibrated for your robot
 
         self.rate = rospy.Rate(10)  # 10 Hz rate for publishing distance
+        self.tof_distance = float('inf')
 
         # When shutdown signal is received, we run clean_shutdown function
         rospy.on_shutdown(self.clean_shutdown)
         
-        ###### Init Pub/Subs. REMEMBER TO REPLACE "duckiebot" WITH YOUR ROBOT'S NAME #####
+        ###### Init Pub/Subs. REMEMBER TO REPLACE "duckienadav" WITH YOUR ROBOT'S NAME #####
         self.cmd_vel_pub = rospy.Publisher('/duckienadav/car_cmd_switch_node/cmd', Twist2DStamped, queue_size=1)
         self.state_pub = rospy.Publisher('/duckienadav/fsm_node/mode', FSMState, queue_size=1)
         rospy.Subscriber('/duckienadav/left_wheel_encoder_node/tick', WheelEncoderStamped, self.left_encoder_callback)
         rospy.Subscriber('/duckienadav/right_wheel_encoder_node/tick', WheelEncoderStamped, self.right_encoder_callback)
-        rospy.Subscriber('/duckienadav/apriltag_detector_node/detections', AprilTagDetectionArray, self.tag_callback, queue_size=1)
+        rospy.Subscriber('/duckienadav/front_center_tof_driver_node', Range, self.tof_callback)
         ################################################################
 
         rospy.spin() # Spin forever but listen to message callbacks
 
-    # Apriltag Detection Callback
-    def tag_callback(self, msg):
-        if self.robot_state != "LANE_FOLLOWING":
-            return
-        
-        for detection in msg.detections:
-            distance = detection.transform.translation.z
-            rospy.loginfo(f"Distance to object: {distance:.2f} meters")
-            self.rate.sleep()
-        
-        self.move_robot(msg.detections)
-    
+    def tof_callback(self, msg):
+        self.tof_distance = msg.range
+        rospy.loginfo(f"Distance to object: {self.tof_distance:.2f} meters")
+
     def left_encoder_callback(self, msg):
         self.left_ticks = msg.data
     
@@ -70,36 +64,20 @@ class Autopilot:
         state_msg.state = self.robot_state
         self.state_pub.publish(state_msg)
 
-    def move_robot(self, detections):
-        if len(detections) == 0:
-            return
+    def move_robot(self):
+        if self.tof_distance >= 0.2:
+            self.drive_straight()
+        else:
+            self.stop_robot()
+            rospy.sleep(5)  # Wait for 5 seconds
 
-        for detection in detections:
-            distance = detection.transform.translation.z
-            if distance < 0.2:
-                self.stop_robot()
-                rospy.sleep(5)  # Wait for 5 seconds
-
-                # Check if the object is still there
-                if self.is_object_still_there():
-                    self.set_mode("NORMAL_JOYSTICK_CONTROL")  # Stop lane following
-                    self.perform_overtake()
-                    self.set_mode("LANE_FOLLOWING")  # Resume lane following
-                else:
-                    self.drive_straight()
-                break
-
-    def is_object_still_there(self):
-        rospy.sleep(1)  # Short delay to allow new detection messages to arrive
-        msg = rospy.wait_for_message('/duckienadav/apriltag_detector_node/detections', AprilTagDetectionArray, timeout=5.0)
-        if len(msg.detections) == 0:
-            return False
-
-        for detection in msg.detections:
-            distance = detection.transform.translation.z
-            if distance < 0.2:
-                return True
-        return False
+            # Check if the object is still there
+            if self.tof_distance < 0.2:
+                self.set_mode("NORMAL_JOYSTICK_CONTROL")  # Stop lane following
+                self.perform_overtake()
+                self.set_mode("LANE_FOLLOWING")  # Resume lane following
+            else:
+                self.drive_straight()
 
     def set_mode(self, mode):
         mode_msg = FSMState()
